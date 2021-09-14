@@ -106,9 +106,9 @@
         }
 
         updatePlayers() {
-            const players = [...document.getElementsByClassName(
+            const players = document.getElementsByClassName(
                 "html5-video-player"
-            )];
+            );
             for (const element of players) {
                 const isNew = !this.players.find(e => (e.element === element));
                 if (isNew) {
@@ -251,9 +251,9 @@
         }
 
         get timeDisplays() {
-            return [...this.element.getElementsByClassName(
+            return this.element.getElementsByClassName(
                 "ytp-time-display notranslate"
-            )];
+            );
         }
 
         get OSDElement() {
