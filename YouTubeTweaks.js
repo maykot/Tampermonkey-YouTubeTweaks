@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         YouTube Tweaks
-// @namespace    https://github.com/maykot/TweakedYouTube
+// @namespace    https://github.com/maykot/YouTubeTweaks-Tampermonkey
 // @version      0.1
 // @author       Felipe Maykot
 // @description  Creates an interface for the YouTube webpage and player that allows for them to be modularly tweaked.
-// @homepage     https://github.com/maykot/TweakedYouTube
+// @homepage     https://github.com/maykot/YouTubeTweaks-Tampermonkey
 // @icon         https://www.youtube.com/s/desktop/8ec23982/img/favicon_144x144.png
 // @include      https://www.youtube.com*
 // @run-at       document-idle
@@ -86,6 +86,25 @@
             );
         }
 
+        applyEagerTweaks() {
+            for (const tweak of this.tweaks) {
+                tweak.onAppEagerInit(this);
+            }
+        }
+
+        applyTweaks(event) {
+            for (const tweak of this.tweaks) {
+                switch (event) {
+                    case EVENTS.INIT:
+                        tweak.onAppInit(this);
+                        break;
+                    case EVENTS.REFRESH:
+                        tweak.onAppRefresh(this);
+                        break;
+                }
+            }
+        }
+
         updatePlayers() {
             const players = [...document.getElementsByClassName(
                 "html5-video-player"
@@ -107,25 +126,6 @@
             this.applyTweaks(EVENTS.REFRESH);
             for (const player of this.players) {
                 player.applyTweaks(EVENTS.REFRESH);
-            }
-        }
-
-        applyEagerTweaks() {
-            for (const tweak of this.tweaks) {
-                tweak.onAppEagerInit(this);
-            }
-        }
-
-        applyTweaks(event) {
-            for (const tweak of this.tweaks) {
-                switch (event) {
-                    case EVENTS.INIT:
-                        tweak.onAppInit(this);
-                        break;
-                    case EVENTS.REFRESH:
-                        tweak.onAppRefresh(this);
-                        break;
-                }
             }
         }
 
@@ -195,13 +195,6 @@
             ).bind(target.element);
         }
 
-        addEventListener(type, listener, options = {}, useCapture = false) {
-            // This is necessary because the player element 'addEventListener'
-            // method is not the native one.
-            const addEventListener = EventTarget.prototype.addEventListener;
-            return addEventListener.bind(this.element)(...arguments);
-        }
-
         applyEagerTweaks() {
             for (const tweak of this.tweaks) {
                 tweak.onPlayerEagerInit(this.proxy);
@@ -218,6 +211,13 @@
                         tweak.onPlayerRefresh(this.proxy);
                 }
             }
+        }
+
+        addEventListener(type, listener, options = {}, useCapture = false) {
+            // This is necessary because the player element 'addEventListener'
+            // method is not the native one.
+            const addEventListener = EventTarget.prototype.addEventListener;
+            return addEventListener.bind(this.element)(...arguments);
         }
 
         get video() {
@@ -398,8 +398,8 @@
         }
 
         /**
-         * Called on app initialization before all other callbacks. Should be
-         * used only for overriding class methods.
+         * Called on app initialization before all other callbacks. Should only
+         * be used for overriding class methods.
          * @param {TweakedYouTubeApp} app The app to be tweaked.
          */
         onAppEagerInit(app) {}
@@ -540,6 +540,7 @@
             for (const scrollable of scrollables) {
                 if (event.path.includes(scrollable)) return;
             }
+
             event.preventDefault();
 
             const direction = -Math.sign(event.deltaY);
@@ -727,7 +728,7 @@
     // - The actual shortcuts should be a separate class.
     // - The original class should only take care of listening for events and
     //   applying the shortcut actions.
-    // - Make shortcut detection more robust to different platforms/locales.
+    // - Make user input detection more robust to different platforms/locales.
     // - Get rid of default shortcuts.
     /**
      * Adds custom actions that can be called via user defined shortcuts.
@@ -831,7 +832,7 @@
             this.app = app;
             window.addEventListener(
                 "keydown",
-                (event) => this.eventHandler(event)
+                this.eventHandler.bind(this)
             );
         }
 
@@ -912,6 +913,7 @@
         }
     }
 
+    // TODO: Don't hide live badge.
     /**
      * Tweaks the time display to show the effective time, taking the current
      * playback rate into account.
@@ -1082,14 +1084,14 @@
 
 
     const tweaks = [
-        // new SaveProgressOnURL(5000),
-        // new MouseWheelVolumeControl(),
-        // new MouseWheelPlaybackRateControl(),
-        // new ModPlaybackRate([]),
-        // new DefaultPlaybackRate(1.25),
-        // new CustomPreferredQuality(QUALITY_LEVELS.FHD),
-        // new CustomKeyboardShortcuts([]),
-        // new EffectiveTimeDisplay(),
+        new SaveProgressOnURL(5000),
+        new MouseWheelVolumeControl(),
+        new MouseWheelPlaybackRateControl(),
+        new ModPlaybackRate([]),
+        new DefaultPlaybackRate(2),
+        new CustomPreferredQuality(QUALITY_LEVELS.FHD),
+        new CustomKeyboardShortcuts([]),
+        new EffectiveTimeDisplay(),
     ];
     new TweakedYouTubeApp(tweaks);
 })();
