@@ -24,8 +24,8 @@
 //   tweaks can respond appropriately.
 //
 // The following tweaks are being affected so far:
-// - EffectiveTimeDisplay: can wrongly displays video time instead of ad time
-//   when ad is being played.
+// - EffectiveTimeDisplay: has to constantly call enableEffTDs/disableEffTDs
+//   to guarantee that effTD will not be displayed during ads.
 // - CustomPreferredQuality: cannot set preferred quality when ad plays as soon
 //   as the page is loaded.
 // - ModPlaybackRate: playback rate is sometimes set to 1x regardless of
@@ -922,106 +922,158 @@
         constructor() {
             super();
 
-            this.tweakedPlayers = new Set();
-            this.tweakedTimeDisplays = new Set();
-
-            this.effTimeDisplay = { className: "eff-time-display" };
-            this.effTDComponents = {
+            this.effTDClassName = "eff-time-display ytp-time-display";
+            this.effTDChildren = {
                 current: {
                     className: "eff-time-current ytp-time-current",
-                    selector: ".eff-time-current.ytp-time-current",
                 },
                 separator: {
                     className: "eff-time-separator ytp-time-separator",
-                    selector: ".eff-time-separator.ytp-time-separator",
-                    innerText: " / "
+                    innerText: " / ",
                 },
                 duration: {
-                    className: "ytp-time-duration eff-time-duration",
-                    selector: ".eff-time-duration.ytp-time-duration",
+                    className: "eff-time-duration ytp-time-duration",
                 },
                 playbackRate: {
                     className: "eff-playback-rate ytp-time-duration",
-                    selector: ".eff-playback-rate.ytp-time-duration",
                 },
             };
+
+            this.tweakedTDs = [];
         }
 
         onPlayerInit(player) {
-            const timeDisplays = this.getNonTweakedTimeDisplays(player);
-            if (!timeDisplays.length) return true;
-
-            for (const timeDisplay of timeDisplays) {
-                this.tweakTimeDisplay(timeDisplay);
-                this.tweakedTimeDisplays.add(timeDisplay);
-            }
-
-            this.updateEffTime(player);
-
-            if (!this.tweakedPlayers.has(player)) {
-                this.bindListeners(player);
-                this.tweakedPlayers.add(player);
-            }
+            this.tweakTDs(player);
+            this.bindListeners(player);
         }
 
         onPlayerRefresh(player) {
-            this.onPlayerInit(player);
+            this.tweakTDs(player);
         }
 
-        getNonTweakedTimeDisplays(player) {
-            const timeDisplays = player.timeDisplays;
-            const nonTweakedTimeDisplays = [];
-            for (const timeDisplay of timeDisplays) {
-                const wasTweaked = this.tweakedTimeDisplays.has(timeDisplay);
-                if (!wasTweaked) {
-                    nonTweakedTimeDisplays.push(timeDisplay);
-                }
+        tweakTDs(player) {
+            const nonTweakedTDs = this.getNonTweakedTDs(player);
+            for (const nativeTD of nonTweakedTDs) {
+                const effTD = this.createEffTD();
+                this.addMouseWheelPlaybackRateControl(player, effTD);
+
+                this.tweakedTDs.push({
+                    native: nativeTD,
+                    eff: effTD,
+                    active: nativeTD,
+                    player: player,
+                });
             }
-            return nonTweakedTimeDisplays;
+            this.updateTDs(player);
         }
 
-        tweakTimeDisplay(timeDisplay) {
-            const effTimeDisplay = document.createElement("span");
-            effTimeDisplay.className = this.effTimeDisplay.className;
+        bindListeners(player) {
+            player.video.addEventListener(
+                "timeupdate", () => this.updateTDs(player)
+            );
+            player.video.addEventListener(
+                "ratechange", () => this.updateTDs(player)
+            );
+        }
 
-            for (const component of Object.values(this.effTDComponents)) {
+        getNonTweakedTDs(player) {
+            const nativeTDs = player.timeDisplays;
+            const nonTweakedTDs = [];
+
+            for (const nativeTD of nativeTDs) {
+                const TDAlreadyTweaked = this.tweakedTDs.find(
+                    e => (e.native === nativeTD)
+                );
+                if (TDAlreadyTweaked) continue;
+
+                nonTweakedTDs.push(nativeTD);
+            }
+
+            return nonTweakedTDs;
+        }
+
+        createEffTD() {
+            const effTD = document.createElement("div");
+            effTD.className = this.effTDClassName;
+
+            for (const child of Object.values(this.effTDChildren)) {
                 const element = document.createElement("span");
-                for (const [attr, val] of Object.entries(component)) {
+                for (const [attr, val] of Object.entries(child)) {
                     element[attr] = val;
                 }
-                effTimeDisplay.appendChild(element);
+                effTD.appendChild(element);
             }
 
-            for (const child of timeDisplay.children) {
-                child.style.display = "none";
-            }
-            timeDisplay.appendChild(effTimeDisplay);
+            return effTD;
         }
 
-        updateEffTime(player) {
-            let current = player.getCurrentTime();
-            let duration = player.getDuration();
-            let rate = player.playbackRate;
-            [current, duration, rate] = this.effTimeStrings(
-                current, duration, rate
-            );
+        updateTDs(player) {
+            // HACK: Temporary workaround until an ad state change event is
+            // implemented.
+            const adState = player.getAdState();
+            const tweakedTDs = this.tweakedTDs.filter(e => e.player == player);
 
-            const timeDisplays = player.timeDisplays;
-            for (const timeDisplay of timeDisplays) {
-                const currentEl = timeDisplay.querySelector(
-                    this.effTDComponents.current.selector
-                );
-                currentEl.innerText = current;
+            if (adState != -1) {
+                this.disableEffTDs(tweakedTDs);
+                return;
+            }
 
-                const durationEl = timeDisplay.querySelector(
-                    this.effTDComponents.duration.selector
-                );
-                durationEl.innerText = duration;
+            this.enableEffTDs(tweakedTDs);
+            this.updateEffTime(tweakedTDs);
+        }
 
-                const playbackRateEl = timeDisplay.querySelector(
-                    this.effTDComponents.playbackRate.selector
-                );
-                playbackRateEl.innerText = rate;
+        disableEffTDs(tweakedTDs) {
+            for (const tweakedTD of tweakedTDs) {
+                this.replaceTDElements(tweakedTD.active, tweakedTD.native);
+                tweakedTD.active = tweakedTD.native;
+            }
+        }
+
+        enableEffTDs(tweakedTDs) {
+            for (const tweakedTD of tweakedTDs) {
+                this.replaceTDElements(tweakedTD.active, tweakedTD.eff);
+                tweakedTD.active = tweakedTD.eff;
+            }
+        }
+
+        replaceTDElements(td1, td2) {
+            const liveBadge = td1.getElementsByClassName(
+                "ytp-live-badge ytp-button"
+            )[0];
+            if (liveBadge) {
+                td2.appendChild(liveBadge);
+            }
+
+            td1.replaceWith(td2);
+        }
+
+        addMouseWheelPlaybackRateControl(player, effTD) {
+            effTD.addEventListener(
+                "wheel",
+                function(event) {
+                    event.preventDefault();
+
+                    const direction = -Math.sign(event.deltaY);
+                    player.stepPlaybackRate(direction);
+                }
+            )
+        }
+
+        updateEffTime(tweakedTDs) {
+            for (const tweakedTD of tweakedTDs) {
+                const eff = tweakedTD.eff;
+                const player = tweakedTD.player;
+
+                const current = player.getCurrentTime();
+                const duration = player.getDuration();
+                const rate = player.playbackRate;
+                const tdStrings = this.effTimeStrings(current, duration, rate);
+
+                for (const [child, text] of Object.entries(tdStrings)) {
+                    const className = this.effTDChildren[child].className;
+                    const element = eff.getElementsByClassName(className)[0];
+                    element.innerText = text;
+                }
             }
         }
 
@@ -1040,7 +1092,11 @@
             const effCurrentStr = this.secsToDisplayFormat(effCurrent);
             const effDurationStr = this.secsToDisplayFormat(effDuration);
 
-            return [effCurrentStr, effDurationStr, rateStr];
+            return {
+                current: effCurrentStr,
+                duration: effDurationStr,
+                playbackRate: rateStr
+            };
         }
 
         /**
@@ -1069,16 +1125,6 @@
             if (s < 10) { s = "0" + s };
 
             return d + dhSeparator + h + hmSeparator + m + msSeparator + s;
-        }
-
-        bindListeners(player) {
-            const video = player.video;
-            video.addEventListener(
-                "timeupdate", () => this.updateEffTime(player)
-            );
-            video.addEventListener(
-                "ratechange", () => this.updateEffTime(player)
-            );
         }
     }
 
