@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         YouTube Tweaks
-// @namespace    https://github.com/maykot/YouTubeTweaks-Tampermonkey
+// @namespace    https://github.com/maykot/Tampermonkey-YouTubeTweaks
 // @version      0.1
 // @author       Felipe Maykot
 // @description  Creates an interface for the YouTube webpage and player that allows for them to be modularly tweaked.
-// @homepage     https://github.com/maykot/YouTubeTweaks-Tampermonkey
+// @homepage     https://github.com/maykot/Tampermonkey-YouTubeTweaks
 // @icon         https://www.youtube.com/s/desktop/8ec23982/img/favicon_144x144.png
 // @include      https://www.youtube.com*
 // @run-at       document-idle
@@ -17,6 +17,7 @@
 // - Change paused video UI behaviour:
 //   - UI should be hidden when video is paused, shown if video is hovered;
 // - Create a button to open all subscriptions which have new content.
+// - Skip to next chapter.
 
 // TODO: Fix needed:
 // - Tweaks are adversely affected by ad state. The ad state needs to be
@@ -352,21 +353,19 @@
         // elements, only the controls. The native methods also do not work with
         // the embedded player, whereas this does.
         toggleUI() {
+            let newStyle;
+
             if (this.isUIEnabled) {
-                for (const element of this.UIElements) {
-                    element.oldStyle = window.getComputedStyle(element).display;
-                    element.style.display = "none";
-                }
+                newStyle = "none";
             } else {
-                for (const element of this.UIElements) {
-                    if (element.oldStyle) {
-                        element.style.display = element.oldStyle;
-                    } else {
-                        element.style.display = "initial";
-                    }
-                }
+                newStyle = "";
                 this.wakeUpControls();
             }
+
+            for (const element of this.UIElements) {
+                element.style.display = newStyle;
+            }
+
             this.isUIEnabled = !this.isUIEnabled;
         }
 
