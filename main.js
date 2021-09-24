@@ -173,7 +173,20 @@
             // player element.
             this.proxy = new Proxy(this, { get: this.getHandler });
 
-            this.isUIEnabled = true;
+            // Monitors changes to the display style of UI elements so that the
+            // proper display style can be set when toggling the UI.
+            this._isUIEnabled = true;
+            const UIObserver = new MutationObserver(
+                (mutations) => this.UIMutationHandler(mutations)
+            );
+            UIObserver.observe(
+                this.element,
+                {
+                    attributes: true,
+                    attributeFilter: ["style"],
+                    childList: true
+                },
+            )
 
             this.applyEagerTweaks();
             this.applyTweaks(EVENTS.INIT);
@@ -194,6 +207,20 @@
             return Reflect.get(
                 target.element, prop, receiver
             ).bind(target.element);
+        }
+
+        UIMutationHandler(mutations) {
+            const UIElements = this.UIElements;
+            for (const mutation of mutations) {
+                const el = mutation.target;
+                if (!UIElements.includes(el)) continue;
+                if (el?.oldDisplayStyle === el.style.display) continue;
+                if (el.togglingUI) {
+                    el.togglingUI = false;
+                } else {
+                    el.oldDisplayStyle = el.style.display;
+                }
+            }
         }
 
         applyEagerTweaks() {
@@ -230,25 +257,10 @@
         }
 
         get UIElements() {
-            const UIComponentSelectors = {
-                TOP_GRADIENT: ".ytp-gradient-top",
-                TOP_CHROME: ".ytp-chrome-top",
-                BOT_GRADIENT: ".ytp-gradient-bottom",
-                BOT_CHROME: ".ytp-chrome-bottom",
-                MORE_VIDEOS: ".ytp-pause-overlay.ytp-scroll-min",
-                CARDS: ".ytp-ce-element",
-                ADS: ".video-ads.ytp-ad-module",
-                MINIPLAYER_UI: ".ytp-miniplayer-ui",
-                BRANDING: ".ytp-player-content.ytp-iv-player-content",
-            };
-            const selectors = Object.values(UIComponentSelectors);
-
-            const UIElements = [];
-            for (const selector of selectors) {
-                const elements = this.element.querySelectorAll(selector);
-                UIElements.push(...elements);
-            }
-
+            let UIElements = [...this.element.children];
+            UIElements = UIElements.filter(
+                e => e.className !== "html5-video-container"
+            );
             return UIElements;
         }
 
@@ -354,20 +366,29 @@
         // elements, only the controls. The native methods also do not work with
         // the embedded player, whereas this does.
         toggleUI() {
-            let newStyle;
-
-            if (this.isUIEnabled) {
-                newStyle = "none";
+            if (this._isUIEnabled) {
+                this.hideUI();
             } else {
-                newStyle = "";
+                this.showUI();
                 this.wakeUpControls();
             }
+            this._isUIEnabled = !this._isUIEnabled;
+        }
 
+        hideUI() {
             for (const element of this.UIElements) {
-                element.style.display = newStyle;
+                element.togglingUI = true;
+                element.oldDisplayStyle = element.style.display;
+                element.style.display = "none";
             }
+        }
 
-            this.isUIEnabled = !this.isUIEnabled;
+        showUI() {
+            for (const element of this.UIElements) {
+                element.togglingUI = true;
+                element.style.display = element.oldDisplayStyle;
+                element.removeAttribute("oldDisplayStyle");
+            }
         }
 
         // HACK: This workaround is needed because the embedded player does not
