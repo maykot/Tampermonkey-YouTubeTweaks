@@ -372,7 +372,6 @@
                 this.showUI();
                 this.wakeUpControls();
             }
-            this._isUIEnabled = !this._isUIEnabled;
         }
 
         hideUI() {
@@ -381,6 +380,7 @@
                 element.oldDisplayStyle = element.style.display;
                 element.style.display = "none";
             }
+            this._isUIEnabled = false;
         }
 
         showUI() {
@@ -389,6 +389,7 @@
                 element.style.display = element.oldDisplayStyle;
                 element.removeAttribute("oldDisplayStyle");
             }
+            this._isUIEnabled = true;
         }
 
         // HACK: This workaround is needed because the embedded player does not
@@ -423,39 +424,39 @@
          * be used for overriding class methods.
          * @param {TweakedYouTubeApp} app The app to be tweaked.
          */
-        onAppEagerInit(app) {}
+        onAppEagerInit(app) { }
 
         /**
          * Called on app initialization.
          * @param {TweakedYouTubeApp} app The app to be tweaked.
          */
-        onAppInit(app) {}
+        onAppInit(app) { }
 
         /**
          * Called on app refresh (on "yt-visibility-refresh" event).
          * @param {TweakedYouTubeApp} app The app to be tweaked.
          */
-        onAppRefresh(app) {}
+        onAppRefresh(app) { }
 
         /**
          * Called on player initialization before all other callbacks. Should be
          * used only for overriding class methods.
          * @param {TweakedYouTubePlayer} player The player to be tweaked.
          */
-        onPlayerEagerInit(player) {}
+        onPlayerEagerInit(player) { }
 
         /**
          * Called on player initialization.
          * @param {TweakedYouTubePlayer} player The player to be tweaked.
          */
-        onPlayerInit(player) {}
+        onPlayerInit(player) { }
 
         /**
          * Called for every player on app refresh (on "yt-visibility-refresh"
          * event).
          * @param {TweakedYouTubePlayer} player The player to be tweaked.
          */
-        onPlayerRefresh(player) {}
+        onPlayerRefresh(player) { }
 
 
         retryOnFail(callback, interval = 500, maxTries = 10) {
@@ -765,75 +766,75 @@
             // - remove current video from playlist;
             // - toggle PiP.
             this.defaultShortcuts = [{
-                    description: "Closes all ads",
-                    modifiers: ["Alt"],
-                    key: "S",
-                    tweakAction: ["closeAds"],
-                },
+                description: "Closes all ads",
+                modifiers: ["Alt"],
+                key: "S",
+                tweakAction: ["closeAds"],
+            },
 
-                {
-                    description: "Toggles stats for nerds",
-                    modifiers: ["Alt"],
-                    key: "V",
-                    playerAction: ["toggleStatsForNerds"],
-                },
+            {
+                description: "Toggles stats for nerds",
+                modifiers: ["Alt"],
+                key: "V",
+                playerAction: ["toggleStatsForNerds"],
+            },
 
-                {
-                    description: "Toggles player UI",
-                    modifiers: ["Alt"],
-                    key: "C",
-                    playerAction: ["toggleUI"],
-                },
+            {
+                description: "Toggles player UI",
+                modifiers: ["Alt"],
+                key: "C",
+                playerAction: ["toggleUI"],
+            },
 
-                {
-                    description: "Sets playback rate to '1x'",
-                    modifiers: ["Alt"],
-                    key: "1",
-                    tweakAction: ["setPlaybackRate", [1]],
-                },
+            {
+                description: "Sets playback rate to '1x'",
+                modifiers: ["Alt"],
+                key: "1",
+                tweakAction: ["setPlaybackRate", [1]],
+            },
 
-                {
-                    description: "Set playback rate to '2x'",
-                    modifiers: ["Alt"],
-                    key: "2",
-                    tweakAction: ["setPlaybackRate", [2]],
-                },
+            {
+                description: "Set playback rate to '2x'",
+                modifiers: ["Alt"],
+                key: "2",
+                tweakAction: ["setPlaybackRate", [2]],
+            },
 
-                {
-                    description: "Decreases volume",
-                    modifiers: ["Alt"],
-                    key: "ArrowDown",
-                    playerAction: ["stepVolume", [-1]],
-                },
+            {
+                description: "Decreases volume",
+                modifiers: ["Alt"],
+                key: "ArrowDown",
+                playerAction: ["stepVolume", [-1]],
+            },
 
-                {
-                    description: "Increases volume",
-                    modifiers: ["Alt"],
-                    key: "ArrowUp",
-                    playerAction: ["stepVolume", [1]],
-                },
+            {
+                description: "Increases volume",
+                modifiers: ["Alt"],
+                key: "ArrowUp",
+                playerAction: ["stepVolume", [1]],
+            },
 
-                {
-                    description: "Decreases playback rate",
-                    modifiers: ["Ctrl", "Shift"],
-                    key: "<",
-                    playerAction: ["stepPlaybackRate", [-1]],
-                },
+            {
+                description: "Decreases playback rate",
+                modifiers: ["Ctrl", "Shift"],
+                key: "<",
+                playerAction: ["stepPlaybackRate", [-1]],
+            },
 
-                {
-                    description: "Increases playback rate",
-                    modifiers: ["Ctrl", "Shift"],
-                    key: ">",
-                    playerAction: ["stepPlaybackRate", [1]],
-                },
+            {
+                description: "Increases playback rate",
+                modifiers: ["Ctrl", "Shift"],
+                key: ">",
+                playerAction: ["stepPlaybackRate", [1]],
+            },
 
-                {
-                    description: "Pauses JavaScript execution (only works if " +
-                        "dev tools are already open)",
-                    modifiers: ["Alt", "Ctrl"],
-                    key: "D",
-                    action: function() { debugger },
-                },
+            {
+                description: "Pauses JavaScript execution (only works if " +
+                    "dev tools are already open)",
+                modifiers: ["Alt", "Ctrl"],
+                key: "D",
+                action: function () { debugger },
+            },
             ];
             this.shortcuts = [...this.defaultShortcuts, ...shortcuts];
             this.modifiers = {
@@ -844,7 +845,7 @@
             };
 
             this.adSelectors = {
-                SKIP_AD: ".ytp-ad-text.ytp-ad-skip-button-text",
+                SKIP_AD: ".ytp-ad-skip-button-container",
                 CLOSE_BANNER: ".ytp-ad-overlay-close-button",
             };
         }
@@ -901,13 +902,14 @@
          */
         closeAds() {
             const focusedPlayer = this.app.focusedPlayer;
+            const skipAdSelector = this.adSelectors.SKIP_AD;
 
             for (const button of this.getAdButtons()) {
                 // Check to prevent skipping ads before timer runs out.
-                const skipAdSelector = this.adSelectors.SKIP_AD;
-                if (button.matches(skipAdSelector) && !button.offsetParent) {
-                    continue;
-                }
+                const isSkipAdButton = button.matches(skipAdSelector);
+                const isHidden = (button.style.display === "none");
+                if (isSkipAdButton && isHidden) continue;
+
                 button.click();
             }
 
@@ -1071,7 +1073,7 @@
         addMouseWheelPlaybackRateControl(player, effTD) {
             effTD.addEventListener(
                 "wheel",
-                function(event) {
+                function (event) {
                     event.preventDefault();
 
                     const direction = -Math.sign(event.deltaY);
