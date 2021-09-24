@@ -239,6 +239,7 @@
                 CARDS: ".ytp-ce-element",
                 ADS: ".video-ads.ytp-ad-module",
                 MINIPLAYER_UI: ".ytp-miniplayer-ui",
+                BRANDING: ".ytp-player-content.ytp-iv-player-content",
             };
             const selectors = Object.values(UIComponentSelectors);
 
