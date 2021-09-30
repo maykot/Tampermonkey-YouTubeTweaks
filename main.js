@@ -32,6 +32,9 @@
 // - ModPlaybackRate: playback rate is sometimes set to 1x regardless of
 //   previous user choice when returning to video after ad is played.
 
+// TODO: Refactor:
+// - Create a closeAds method for both the YouTubeApp and YouTubePlayer classes.
+
 (() => {
     "use strict";
 
@@ -173,20 +176,19 @@
             // player element.
             this.proxy = new Proxy(this, { get: this.getHandler });
 
-            // Monitors changes to the display style of UI elements so that the
-            // proper display style can be set when toggling the UI.
+            // Monitors changes to the UI elements so that the proper display
+            // style can be set when toggling the UI.
             this._isUIEnabled = true;
+            this._ignoreNextUIMutation = false;
+            const observerOptions = {
+                attributes: true,
+                attributeFilter: ["style"],
+                subtree: true,
+            };
             const UIObserver = new MutationObserver(
                 (mutations) => this.UIMutationHandler(mutations)
             );
-            UIObserver.observe(
-                this.element,
-                {
-                    attributes: true,
-                    attributeFilter: ["style"],
-                    childList: true
-                },
-            )
+            UIObserver.observe(this.element, observerOptions);
 
             this.applyEagerTweaks();
             this.applyTweaks(EVENTS.INIT);
@@ -210,15 +212,19 @@
         }
 
         UIMutationHandler(mutations) {
+            if (this._ignoreNextUIMutation) {
+                this._ignoreNextUIMutation = false;
+                return;
+            }
+
             const UIElements = this.UIElements;
             for (const mutation of mutations) {
                 const el = mutation.target;
                 if (!UIElements.includes(el)) continue;
-                if (el?.oldDisplayStyle === el.style.display) continue;
-                if (el.togglingUI) {
-                    el.togglingUI = false;
-                } else {
-                    el.oldDisplayStyle = el.style.display;
+
+                el.oldDisplayStyle = el.style.display;
+                if (!this._isUIEnabled) {
+                    el.style.display = "none";
                 }
             }
         }
@@ -363,8 +369,10 @@
 
         // This is purposefully different from the native
         // hideControls/showControls methods. Those do not toggle all UI
-        // elements, only the controls. The native methods also do not work with
-        // the embedded player, whereas this does.
+        // elements, only the controls.
+
+        // BUG: Ad elements that were hidden by the user might show up during
+        // normal playback.
         toggleUI() {
             if (this._isUIEnabled) {
                 this.hideUI();
@@ -375,8 +383,8 @@
         }
 
         hideUI() {
+            this._ignoreNextUIMutation = true;
             for (const element of this.UIElements) {
-                element.togglingUI = true;
                 element.oldDisplayStyle = element.style.display;
                 element.style.display = "none";
             }
@@ -384,26 +392,17 @@
         }
 
         showUI() {
+            this._ignoreNextUIMutation = true;
             for (const element of this.UIElements) {
-                element.togglingUI = true;
                 element.style.display = element.oldDisplayStyle;
                 element.removeAttribute("oldDisplayStyle");
             }
             this._isUIEnabled = true;
         }
 
-        // HACK: This workaround is needed because the embedded player does not
-        // support the native wakeUpControls method.
         wakeUpControls() {
-            const options = {
-                'view': window,
-                'bubbles': true,
-                'cancelable': true
-            };
-            const mouseOver = new MouseEvent('mouseover', options);
-            const mouseMove = new MouseEvent('mousemove', options);
-            this.element.dispatchEvent(mouseOver);
-            this.element.dispatchEvent(mouseMove);
+            if (!this.element.wakeUpControls) return;
+            this.element.wakeUpControls();
         }
     }
 
@@ -509,7 +508,7 @@
         saveProgressOnUrl() {
             if (this.progressSaved) return;
 
-            const path = window.location.pathname.split('/');
+            const path = window.location.pathname.split("/");
             const isWatchPage = (path[1] === "watch");
             if (!isWatchPage) return;
 
@@ -936,7 +935,9 @@
         }
     }
 
-    // TODO: Don't hide live badge.
+    // BUG: Live badge is hidden in live videos and eff time is shown.
+    // TODO: Replace only the required individual elements instead of replacing the whole 'ytp-time-display'.
+    // TODO: Do not update time if display is hidden.
     /**
      * Tweaks the time display to show the effective time, taking the current
      * playback rate into account.
