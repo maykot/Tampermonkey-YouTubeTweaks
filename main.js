@@ -6,7 +6,8 @@
 // @description  Creates an interface for the YouTube webpage and player that allows for them to be modularly tweaked.
 // @homepage     https://github.com/maykot/Tampermonkey-YouTubeTweaks
 // @icon         https://www.youtube.com/s/desktop/8ec23982/img/favicon_144x144.png
-// @include      https://www.youtube.com*
+// @include      https://www.youtube.com/*
+// @include      https://www.youtube-nocookie.com/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
